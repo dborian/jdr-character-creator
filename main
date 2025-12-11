@@ -1,0 +1,344 @@
+from dataclasses import dataclass
+import sys
+import json
+import os
+import curses
+
+class connaissance:
+    name: str
+    expl: str
+
+class character:
+    firstname: str
+    name: str
+    age: int
+    job: str
+
+    def __init__(self):
+        self.stat = []
+        self.con1 = connaissance()
+        self.con2 = connaissance()
+        self.con3 = connaissance()
+
+def display_command():
+    print("help:    display all command")
+    print("exit:    exit program")
+    print("new:     create a new character")
+    print("list:    list all character")
+    print("show:    show character specificities")
+    print("syntaxe  show [character_fullname]")
+    print("mod:     modify a stat on a character")
+    print("syntaxe  mod [character_fullname]")
+    print("rm:      remove a charactere")
+    print("syntaxe  rm [character_fullname]")
+    print("  NOT IMPLEMANTED YET")
+    print("lvlup:   lvl up a character")
+
+def show_char(name):
+    filename = os.path.join(".character", f"{name}.json")
+    with open(filename, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    print(f"- {data["lastname"]} {data["firstname"]} est un personnage de {data["age"]} qui travaillent en tant que {data["job"]}")
+    print(f"- ses connaissances sont: ")
+    print(f"- 1. {data["knowledges"][0]["name"]}")
+    print(f"- {data["knowledges"][0]["description"]}")
+    print(f"- 2. {data["knowledges"][1]["name"]}")
+    print(f"- {data["knowledges"][1]["description"]}")
+    print(f"- 3. {data["knowledges"][2]["name"]}")
+    print(f"- {data["knowledges"][2]["description"]}")
+    print("- et pour ce qui est de ses stat: ")
+    print(f"- combat:         {data["stats"]["combat"]}")
+    print(f"- shooting:       {data["stats"]["shooting"]}")
+    print(f"- strength:       {data["stats"]["strength"]}")
+    print(f"- agility:        {data["stats"]["agility"]}")
+    print(f"- intelligence:   {data["stats"]["intelligence"]}")
+    print(f"- perception:     {data["stats"]["perception"]}")
+
+def create_json(c):
+    folder = ".character"
+    os.makedirs(folder, exist_ok=True)
+    filename = os.path.join(folder, f"{c.firstname}_{c.name}.json")
+    data = {
+        "firstname": c.firstname,
+        "lastname": c.name,
+        "age": c.age,
+        "job": c.job,
+        "knowledges": [
+            {
+                "name": c.con1.name,
+                "description": c.con1.expl,
+            },
+            {
+                "name": c.con2.name,
+                "description": c.con2.expl,
+            },
+            {
+                "name": c.con3.name,
+                "description": c.con3.expl,
+            },
+        ],
+        "stats": {
+            "combat":      c.stat[0],
+            "shooting":    c.stat[1],
+            "strength":    c.stat[2],
+            "agility":     c.stat[3],
+            "intelligence": c.stat[4],
+            "perception":  c.stat[5],
+        },
+    }
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+def new_char():
+    c = character()
+
+    c.firstname = input("Enter character firstname: ")
+    c.name = input("Enter character name: ")
+    c.age = int(input("age of the character: "))
+    c.job = input("job of your character: ")
+
+    c.con1.name = input("nom de la premiere connaissance: ")
+    c.con1.expl = input("explication de la premiere connaissance: ")
+    c.con2.name = input("nom de la deuxieme connaissance: ")
+    c.con2.expl = input("explication de la deuxieme connaissance: ")
+    c.con3.name = input("nom de la troisieme connaissance: ")
+    c.con3.expl = input("explication de la troisieme connaissance: ")
+
+    print("pour les stat, 300 point doivent etre repartit dans 6 categorie")
+    print("capacite de combat | capacite de tir | force | agilite | inteligence | perception")
+    print("pour entre les different point dans chaque categorie 2 possibilite:")
+    print("1: entre les point que tu veut mettre de cette maniere example \"50,50,50,50,50,50\" dans l'ordre")
+    print("2: quand il le sera demander indique le nombre de point a atribuer pour chaque categorie 1 a 1")
+    print("1 ou 2")
+    choice = int(input("-> "))
+    if choice == 1:
+        print("go on:")
+        while True:
+            stat = input()
+            l = stat.split(",")
+            total = 0
+            for n in l:
+                total = total + int(n)
+            if total == 300 and len(l) == 6:
+                for n in l:
+                    c.stat.append(int(n))
+                break
+            print("ca fais pas 300 connard, recommence")
+    elif choice == 2:
+        while True:
+            l = [0, 0, 0, 0, 0, 0]
+            total = 0
+            l[0] = int(input("capacite de combat: "))
+            total += l[0]
+            print(f"point restant: {300 - total}")
+            l[1] = int(input("capacite de tir: "))
+            total += l[1]
+            print(f"point restant: {300 - total}")
+            l[2] = int(input("force: "))
+            total += l[2]
+            print(f"point restant: {300 - total}")
+            l[3] = int(input("agilite: "))
+            total += l[3]
+            print(f"point restant: {300 - total}")
+            l[4] = int(input("inteligence: "))
+            total += l[4]
+            print(f"point restant: {300 - total}")
+            l[5] = int(input("perception: "))
+            total += l[5]
+            if total == 300:
+                for n in l:
+                    c.stat.append(int(n))
+                break
+            else:
+                print("ca fais pas 300 connard, recommence")
+    create_json(c)
+
+def list_characters():
+    folder = ".character"
+    if not os.path.exists(folder):
+        print("Aucun personnage trouvé.")
+        return
+    files = os.listdir(folder)
+    characters = [f for f in files if f.endswith(".json")]
+
+    if not characters:
+        print("Aucun personnage trouvé.")
+        return
+
+    print("Personnages disponibles :")
+    for c in characters:
+        name = c.replace("_", " ")
+        print(" - " + name[:-5])
+
+def remove_char(char):
+    name = char.replace(" ", "_")
+    if os.path.exists(f".character/{name}.json"):
+        os.remove(".character/dorian_edme.json")
+        print(f"{char} succefully removed")
+    else:
+        print(f"character doesn't exist")
+
+def modify_character_curses(char_name):
+    folder = ".character"
+    filename = os.path.join(folder, f"{char_name}.json")
+    with open(filename, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    def get_value(d, path):
+        cur = d
+        for p in path:
+            cur = cur[p]
+        return cur
+
+    def set_value(d, path, value):
+        cur = d
+        for p in path[:-1]:
+            cur = cur[p]
+        cur[path[-1]] = value
+
+    def select_from_list(stdscr, title, options):
+        curses.curs_set(0)
+        stdscr.keypad(True)
+        selected = 0
+        while True:
+            stdscr.clear()
+            stdscr.addstr(0, 0, title)
+            stdscr.addstr(1, 0, "↑/↓ pour naviguer, Entrée pour valider, q pour annuler")
+            for i, opt in enumerate(options):
+                prefix = "> " if i == selected else "  "
+                stdscr.addstr(3 + i, 0, prefix + opt)
+            stdscr.refresh()
+            key = stdscr.getch()
+            if key == curses.KEY_UP and selected > 0:
+                selected -= 1
+            elif key == curses.KEY_DOWN and selected < len(options) - 1:
+                selected += 1
+            elif key == ord('q'):
+                return None
+            elif key == ord('\n'):
+                return selected
+
+    def edit_field(stdscr, label, path, type_name):
+        current_value = get_value(data, path)
+        stdscr.clear()
+        curses.curs_set(1)
+        stdscr.addstr(0, 0, f"Modification de : {label}")
+        stdscr.addstr(2, 0, f"Valeur actuelle : {current_value}")
+        stdscr.addstr(4, 0, "Nouvelle valeur (vide = annuler) : ")
+        stdscr.refresh()
+        curses.echo()
+        new_bytes = stdscr.getstr(5, 0)
+        curses.noecho()
+        curses.curs_set(0)
+        new_text = new_bytes.decode("utf-8").strip()
+        if new_text == "":
+            return
+        if type_name == "int":
+            try:
+                new_val = int(new_text)
+            except ValueError:
+                stdscr.addstr(7, 0, "Valeur invalide (pas un entier). Touche pour continuer.")
+                stdscr.refresh()
+                stdscr.getch()
+                return
+        else:
+            new_val = new_text
+        set_value(data, path, new_val)
+        stdscr.addstr(7, 0, "Valeur modifiée. Touche pour continuer.")
+        stdscr.refresh()
+        stdscr.getch()
+
+    def inner(stdscr):
+        while True:
+            main_options = ["identity", "capacity", "stat", "quit"]
+            choice = select_from_list(stdscr, f"Modifier {char_name}", main_options)
+            if choice is None or main_options[choice] == "quit":
+                break
+            if main_options[choice] == "identity":
+                identity_fields = [
+                    ("firstname", ("firstname",), "str"),
+                    ("lastname",  ("lastname",),  "str"),
+                    ("age",       ("age",),       "int"),
+                    ("job",       ("job",),       "str"),
+                ]
+                labels = [f"{label} = {get_value(data, path)}"
+                          for (label, path, _t) in identity_fields]
+                idx = select_from_list(stdscr, "Identity fields", labels)
+                if idx is None:
+                    continue
+                label, path, tname = identity_fields[idx]
+                edit_field(stdscr, label, path, tname)
+            elif main_options[choice] == "capacity":
+                know = data.get("knowledges", [])
+                if not know:
+                    stdscr.clear()
+                    stdscr.addstr(0, 0, "Aucune connaissance définie. Touche pour continuer.")
+                    stdscr.refresh()
+                    stdscr.getch()
+                    continue
+                know_labels = [f"{i+1}. {k.get('name', '(sans nom)')}" for i, k in enumerate(know)]
+                k_idx = select_from_list(stdscr, "Choisir une connaissance", know_labels)
+                if k_idx is None:
+                    continue
+                cap_fields = [
+                    ("name",        ("knowledges", k_idx, "name"),        "str"),
+                    ("description", ("knowledges", k_idx, "description"), "str"),
+                ]
+                cap_labels = [f"{label} = {get_value(data, path)}"
+                              for (label, path, _t) in cap_fields]
+                f_idx = select_from_list(stdscr, "Champ de la connaissance", cap_labels)
+                if f_idx is None:
+                    continue
+                label, path, tname = cap_fields[f_idx]
+                edit_field(stdscr, f"knowledge {k_idx+1} {label}", path, tname)
+            elif main_options[choice] == "stat":
+                stat_labels = [
+                    ("combat",       "combat"),
+                    ("shooting",     "shooting"),
+                    ("strength",     "strength"),
+                    ("agility",      "agility"),
+                    ("intelligence", "intelligence"),
+                    ("perception",   "perception"),
+                ]
+                fields = []
+                display = []
+                for key, label in stat_labels:
+                    path = ("stats", key)
+                    fields.append((label, path, "int"))
+                    display.append(f"{label} = {get_value(data, path)}")
+                s_idx = select_from_list(stdscr, "Stats", display)
+                if s_idx is None:
+                    continue
+                label, path, tname = fields[s_idx]
+                edit_field(stdscr, f"stat {label}", path, tname)
+    curses.wrapper(inner)
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+    old_filename = filename
+    new_filename = os.path.join(folder, f"{data['firstname']}_{data['lastname']}.json")
+    if old_filename != new_filename:
+        os.rename(old_filename, new_filename)
+
+
+def main():
+    while True:
+        line = input("dodo─> ")
+        if line == "new":
+            new_char()
+        elif line == "help":
+            display_command()
+        elif line == "list":
+            list_characters()
+        elif "rm" in line:
+            remove_char(f"{line.split()[1]} {line.split()[2]}")
+        elif line.split()[0] == "mod":
+            name = line.split()[1]
+            modify_character_curses(f"{line.split()[1]}_{line.split()[2]}")
+        elif line.split()[0] == "show":
+            show_char(f"{line.split()[1]}_{line.split()[2]}")
+        elif line == "exit":
+            print("la bise")
+            sys.exit(0)
+
+if __name__ == "__main__":
+    main()

@@ -397,20 +397,20 @@ def make_overlay(data: dict, overlay_path: str, page_w: float, page_h: float):
     # =========================
     # Zone passeport (valeurs à droite des libellés)
     # Ajustées sur ton template rendu.
-    x_value = 580
-    y_nom = 1505
+    x_value = 600
+    y_nom = 1490
     y_prenom = 1445
-    y_age = 1385
-    y_job = 1325
+    y_age = 1400
+    y_job = 1357
 
-    c.setFont("Helvetica-Bold", 22)
+    c.setFont("Helvetica-Bold", 30)
     c.drawString(x_value, y_nom, str(data.get("lastname", "")))
     c.drawString(x_value, y_prenom, str(data.get("firstname", "")))
 
-    c.setFont("Helvetica-Bold", 20)
+    c.setFont("Helvetica-Bold", 30)
     c.drawString(x_value, y_age, str(data.get("age", "")))
 
-    c.setFont("Helvetica-Bold", 18)
+    c.setFont("Helvetica-Bold", 30)
     c.drawString(x_value, y_job, str(data.get("job", "")))
 
     # =========================
@@ -476,14 +476,6 @@ def make_overlay(data: dict, overlay_path: str, page_w: float, page_h: float):
     c.drawCentredString(x_agi,       y_stats, str(s.get("agility", "")))
     c.drawCentredString(x_int,       y_stats, str(s.get("intelligence", "")))
     c.drawCentredString(x_per,       y_stats, str(s.get("perception", "")))
-
-    # =========================
-    # STRESS (coords calées)
-    # =========================
-    stress_val = data.get("stress", 0)
-    c.setFont("Helvetica-Bold", 90)
-    c.drawCentredString(1021, 991, str(stress_val))
-
     c.showPage()
     c.save()
 

@@ -3,6 +3,9 @@ import sys
 import json
 import os
 import curses
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from pypdf import PdfReader, PdfWriter
 
 class connaissance:
     name: str
@@ -24,6 +27,8 @@ def display_command():
     print("help:    display all command")
     print("exit:    exit program")
     print("new:     create a new character")
+    print("gen:     generate the pdf of the character selected")
+    print("gen:     show character specificities")
     print("list:    list all character")
     print("show:    show character specificities")
     print("syntaxe  show [character_fullname]")
@@ -319,26 +324,229 @@ def modify_character_curses(char_name):
     if old_filename != new_filename:
         os.rename(old_filename, new_filename)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+TEMPLATE_PDF = os.path.join(BASE_DIR, "Combat.pdf")
+CHAR_DIR = os.path.join(BASE_DIR, ".character")
+OUT_DIR = os.path.join(BASE_DIR, ".pdf")
+
+
+def load_character(fullname: str) -> dict:
+    path = os.path.join(CHAR_DIR, f"{fullname}.json")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def wrap_text(c, text: str, font_name: str, font_size: int, max_width: float):
+    """Retourne une liste de lignes wrappées pour tenir dans max_width."""
+    if not text:
+        return [""]
+
+    words = text.split()
+    lines = []
+    cur = ""
+
+    for w in words:
+        test = (cur + " " + w).strip()
+        if c.stringWidth(test, font_name, font_size) <= max_width:
+            cur = test
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+
+    if cur:
+        lines.append(cur)
+
+    return lines
+
+
+def draw_wrapped_block(
+    c,
+    lines: list[str],
+    x: float,
+    y_top: float,
+    max_width: float,
+    max_height: float,
+    font_name: str,
+    font_size: int,
+    line_height: float,
+):
+    """
+    Dessine des lignes wrappées dans un bloc (x, y_top) vers le bas,
+    en respectant max_width et max_height. Stoppe si ça dépasse.
+    """
+    c.setFont(font_name, font_size)
+    y = y_top
+    y_min = y_top - max_height
+
+    for raw in lines:
+        wrapped = wrap_text(c, raw, font_name, font_size, max_width)
+        for ln in wrapped:
+            if y - line_height < y_min:
+                return  # plus de place
+            c.drawString(x, y, ln)
+            y -= line_height
+
+
+def make_overlay(data: dict, overlay_path: str, page_w: float, page_h: float):
+    c = canvas.Canvas(overlay_path, pagesize=(page_w, page_h))
+
+    # =========================
+    # IDENTITY (passeport)
+    # =========================
+    # Zone passeport (valeurs à droite des libellés)
+    # Ajustées sur ton template rendu.
+    x_value = 580
+    y_nom = 1505
+    y_prenom = 1445
+    y_age = 1385
+    y_job = 1325
+
+    c.setFont("Helvetica-Bold", 22)
+    c.drawString(x_value, y_nom, str(data.get("lastname", "")))
+    c.drawString(x_value, y_prenom, str(data.get("firstname", "")))
+
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(x_value, y_age, str(data.get("age", "")))
+
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(x_value, y_job, str(data.get("job", "")))
+
+    # =========================
+    # CAPACITY (Connaissance)
+    # =========================
+    # Sur ton template, c’est une grande zone grise unique.
+    # On écrit les 3 connaissances dedans (nom + description), avec WRAP.
+    # Dimensions approx de la box grise :
+    box_x = 40
+    box_y_top = 1220
+    box_width = 700
+    box_height = 210
+
+    know = data.get("knowledges", [])
+    block_lines = []
+
+    for i, k in enumerate(know[:3], start=1):
+        n = k.get("name", "")
+        d = k.get("description", "")
+        if n and d:
+            block_lines.append(f"{i}. {n} : {d}")
+        elif n:
+            block_lines.append(f"{i}. {n}")
+        elif d:
+            block_lines.append(f"{i}. {d}")
+        else:
+            block_lines.append(f"{i}. (vide)")
+
+    # petit fallback si vide
+    if not block_lines:
+        block_lines = ["(Aucune connaissance)"]
+
+    # Dessin wrappé dans la box
+    draw_wrapped_block(
+        c,
+        lines=block_lines,
+        x=box_x + 20,
+        y_top=box_y_top,
+        max_width=box_width - 40,
+        max_height=box_height,
+        font_name="Helvetica-Bold",
+        font_size=16,
+        line_height=22,
+    )
+
+    # =========================
+    # STATS (coords calées)
+    # =========================
+    s = data.get("stats", {})
+
+    y_stats = 839
+    x_capcombat = 101
+    x_captir    = 241
+    x_for       = 359
+    x_agi       = 478
+    x_int       = 596
+    x_per       = 715
+
+    c.setFont("Helvetica-Bold", 26)
+    c.drawCentredString(x_capcombat, y_stats, str(s.get("combat", "")))
+    c.drawCentredString(x_captir,    y_stats, str(s.get("shooting", "")))
+    c.drawCentredString(x_for,       y_stats, str(s.get("strength", "")))
+    c.drawCentredString(x_agi,       y_stats, str(s.get("agility", "")))
+    c.drawCentredString(x_int,       y_stats, str(s.get("intelligence", "")))
+    c.drawCentredString(x_per,       y_stats, str(s.get("perception", "")))
+
+    # =========================
+    # STRESS (coords calées)
+    # =========================
+    stress_val = data.get("stress", 0)
+    c.setFont("Helvetica-Bold", 90)
+    c.drawCentredString(1021, 991, str(stress_val))
+
+    c.showPage()
+    c.save()
+
+
+def merge_template(template_path: str, overlay_path: str, output_path: str):
+    base = PdfReader(template_path)
+    ov = PdfReader(overlay_path)
+    writer = PdfWriter()
+
+    page = base.pages[0]
+    page.merge_page(ov.pages[0])
+    writer.add_page(page)
+
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+
+def gen_pdf(fullname: str) -> str:
+    data = load_character(fullname)
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    base = PdfReader(TEMPLATE_PDF)
+    page = base.pages[0]
+    page_w = float(page.mediabox.width)
+    page_h = float(page.mediabox.height)
+
+    overlay_path = os.path.join(OUT_DIR, f"{fullname}__overlay.pdf")
+    output_path  = os.path.join(OUT_DIR, f"{fullname}_combat.pdf")
+
+    make_overlay(data, overlay_path, page_w, page_h)
+    merge_template(TEMPLATE_PDF, overlay_path, output_path)
+    return output_path
 
 def main():
-    while True:
-        line = input("dodo─> ")
-        if line == "new":
-            new_char()
-        elif line == "help":
-            display_command()
-        elif line == "list":
-            list_characters()
-        elif "rm" in line:
-            remove_char(f"{line.split()[1]} {line.split()[2]}")
-        elif line.split()[0] == "mod":
-            name = line.split()[1]
-            modify_character_curses(f"{line.split()[1]}_{line.split()[2]}")
-        elif line.split()[0] == "show":
-            show_char(f"{line.split()[1]}_{line.split()[2]}")
-        elif line == "exit":
-            print("la bise")
-            sys.exit(0)
+    try:
+        while True:
+            line = input("dodo─> ")
+            if line == "":
+                continue
+            elif line == "new":
+                new_char()
+            elif line == "help":
+                display_command()
+            elif line == "list":
+                list_characters()
+            elif "rm" in line:
+                remove_char(f"{line.split()[1]} {line.split()[2]}")
+            elif line.split()[0] == "mod":
+                modify_character_curses(f"{line.split()[1]}_{line.split()[2]}")
+            elif line.split()[0] == "show":
+                show_char(f"{line.split()[1]}_{line.split()[2]}")
+            elif line == "exit":
+                print("la bise")
+                sys.exit(0)
+            elif line.split()[0] == "gen":
+                out = gen_pdf(f"{line.split()[1]}_{line.split()[2]}")
+                print(f"{out}.pdf created")
+            else:
+                print(f"{line} command not found")
+    except KeyboardInterrupt:
+        print("")
+        print("la bise")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()

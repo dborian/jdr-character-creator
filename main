@@ -27,9 +27,9 @@ def display_command():
     print("help:    display all command")
     print("exit:    exit program")
     print("new:     create a new character")
-    print("gen:     generate the pdf of the character selected")
-    print("gen:     show character specificities")
     print("list:    list all character")
+    print("gen:     generate the pdf of the character selected")
+    print("syntaxe  gen [character_fulllname]")
     print("show:    show character specificities")
     print("syntaxe  show [character_fullname]")
     print("mod:     modify a stat on a character")
@@ -43,7 +43,7 @@ def show_char(name):
     filename = os.path.join(".character", f"{name}.json")
     with open(filename, "r", encoding="utf-8") as f:
         data = json.load(f)
-    print(f"- {data["lastname"]} {data["firstname"]} est un personnage de {data["age"]} qui travaillent en tant que {data["job"]}")
+    print(f"- {data["lastname"]} {data["firstname"]} est un personnage de {data["age"]} ans qui travaillent en tant que {data["job"]}")
     print(f"- ses connaissances sont: ")
     print(f"- 1. {data["knowledges"][0]["name"]}")
     print(f"- {data["knowledges"][0]["description"]}")
@@ -178,7 +178,7 @@ def list_characters():
 def remove_char(char):
     name = char.replace(" ", "_")
     if os.path.exists(f".character/{name}.json"):
-        os.remove(".character/dorian_edme.json")
+        os.remove(f".character/{name}.json")
         print(f"{char} succefully removed")
     else:
         print(f"character doesn't exist")
@@ -328,7 +328,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TEMPLATE_PDF = os.path.join(BASE_DIR, "Combat.pdf")
 CHAR_DIR = os.path.join(BASE_DIR, ".character")
-OUT_DIR = os.path.join(BASE_DIR, ".pdf")
+OUT_DIR = os.path.join(BASE_DIR, "pdf")
 
 
 def load_character(fullname: str) -> dict:
@@ -503,14 +503,28 @@ def gen_pdf(fullname: str) -> str:
     page_w = float(page.mediabox.width)
     page_h = float(page.mediabox.height)
 
-    overlay_path = os.path.join(OUT_DIR, f"{fullname}__overlay.pdf")
+    overlay_path = os.path.join("/tmp", f"{fullname}__overlay.pdf")
     output_path  = os.path.join(OUT_DIR, f"{fullname}_combat.pdf")
 
-    make_overlay(data, overlay_path, page_w, page_h)
-    merge_template(TEMPLATE_PDF, overlay_path, output_path)
+    try:
+        make_overlay(data, overlay_path, page_w, page_h)
+        merge_template(TEMPLATE_PDF, overlay_path, output_path)
+    finally:
+        if os.path.exists(overlay_path):
+            os.remove(overlay_path)
     return output_path
 
 def main():
+    global op_sys
+    if sys.platform.startswith("win"):
+      print("os -> win")
+      op_sys = "windows"
+    elif sys.platform.startswith("linux"):
+      print("os -> linux ma gueule")
+      op_sys = "linux"
+    else:
+      print("your os is not included yet sry...")
+      exit
     try:
         while True:
             line = input("dodo─> ")
